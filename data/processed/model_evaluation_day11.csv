@@ -1,0 +1,7 @@
+Metric,Value
+Number of Customers,4338.0
+Number of Clusters,2.0
+Sample Size for Silhouette,500.0
+Approximate Silhouette Score,0.4324
+Total Inertia,6483.58
+Average Squared Distance,1.4946
