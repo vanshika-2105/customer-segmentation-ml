@@ -1,0 +1,3 @@
+Cluster,Segment_Name,Customer_Count,Avg_Recency,Avg_Frequency,Avg_Monetary,Percentage
+0,Occasional Low-Spending Customers,2672,134.09,1.67,495.59,61.6
+1,Frequent High-Value Customers,1666,25.89,8.44,4539.6,38.4
