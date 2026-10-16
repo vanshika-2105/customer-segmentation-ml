@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -37,6 +36,7 @@ try:
     required_columns = [
         "CustomerID", "Recency", "Frequency", "Monetary", "Cluster"
     ]
+
     missing_columns = [
         column for column in required_columns
         if column not in customers.columns
@@ -46,7 +46,24 @@ try:
         st.error(f"Required columns are missing: {missing_columns}")
         st.stop()
 
-    # Add readable names to the existing cluster labels
+    if customers.empty:
+        st.error("The customer data file contains no customer records.")
+        st.stop()
+
+    # Ensure RFM columns contain numeric values
+    for column in ["Recency", "Frequency", "Monetary", "Cluster"]:
+        customers[column] = pd.to_numeric(
+            customers[column], errors="coerce"
+        )
+
+    # Remove rows with missing values in required fields
+    customers = customers.dropna(subset=required_columns).copy()
+
+    if customers.empty:
+        st.error("No valid customer records were found in the data file.")
+        st.stop()
+
+    # Use readable segment names
     segment_names = {
         0: "Occasional Low-Spending Customers",
         1: "Frequent High-Value Customers"
@@ -55,12 +72,17 @@ try:
     if "Segment_Name" not in customers.columns:
         customers["Segment_Name"] = customers["Cluster"].map(segment_names)
 
+    # Fill any missing segment names safely
+    customers["Segment_Name"] = customers["Segment_Name"].fillna(
+        customers["Cluster"].apply(lambda cluster: f"Segment {int(cluster)}")
+    )
+
     # --------------------------------------------------
-    # 3. Interactive segment filter
+    # 3. Segment filters
     # --------------------------------------------------
     st.sidebar.header("Dashboard Filters")
 
-    all_segments = sorted(customers["Segment_Name"].dropna().unique())
+    all_segments = sorted(customers["Segment_Name"].unique().tolist())
 
     selected_segments = st.sidebar.multiselect(
         "Select customer segments",
@@ -81,35 +103,28 @@ try:
         st.stop()
 
     # --------------------------------------------------
-    # 4. Overview metrics that respond to filters
+    # 4. Customer overview
     # --------------------------------------------------
     st.subheader("Customer Overview")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
-        st.metric("Filtered Customers", f"{len(filtered_customers):,}")
-
-    with col2:
-        st.metric(
-            "Selected Segments",
-            filtered_customers["Cluster"].nunique()
-        )
-
-    with col3:
-        st.metric(
-            "Average Recency",
-            f"{filtered_customers['Recency'].mean():,.1f} days"
-        )
-
-    with col4:
-        st.metric(
-            "Average Customer Spend",
-            f"{filtered_customers['Monetary'].mean():,.2f}"
-        )
+    col1.metric("Filtered Customers", f"{len(filtered_customers):,}")
+    col2.metric(
+        "Selected Segments",
+        filtered_customers["Cluster"].nunique()
+    )
+    col3.metric(
+        "Average Recency",
+        f"{filtered_customers['Recency'].mean():,.1f} days"
+    )
+    col4.metric(
+        "Average Customer Spend",
+        f"{filtered_customers['Monetary'].mean():,.2f}"
+    )
 
     # --------------------------------------------------
-    # 5. Customer distribution
+    # 5. Customer distribution chart
     # --------------------------------------------------
     st.subheader("Customer Distribution by Segment")
 
@@ -132,13 +147,18 @@ try:
             "Customer Count": "Number of Customers"
         }
     )
-    fig_distribution.update_traces(textposition="outside", cliponaxis=False)
+
+    fig_distribution.update_traces(
+        textposition="outside",
+        cliponaxis=False
+    )
     fig_distribution.update_layout(
         yaxis_title="",
         height=350,
         showlegend=False,
         margin=dict(l=20, r=50, t=60, b=30)
     )
+
     st.plotly_chart(fig_distribution, use_container_width=True)
 
     # --------------------------------------------------
@@ -148,10 +168,11 @@ try:
 
     metric_choice = st.selectbox(
         "Choose a metric to compare",
-        options=["Recency", "Frequency", "Monetary"],
+        ["Recency", "Frequency", "Monetary"],
         help=(
-            "Recency is days since last purchase; Frequency is transaction "
-            "count; Monetary is total customer spending."
+            "Recency means days since the last purchase. "
+            "Frequency means number of transactions. "
+            "Monetary means total customer spending."
         )
     )
 
@@ -173,15 +194,17 @@ try:
             metric_choice: metric_labels[metric_choice]
         }
     )
+
     fig_rfm.update_layout(
         xaxis_title="Customer Segment",
         yaxis_title=metric_labels[metric_choice],
         showlegend=False
     )
+
     st.plotly_chart(fig_rfm, use_container_width=True)
 
     # --------------------------------------------------
-    # 7. Segment summary table
+    # 7. Segment summary
     # --------------------------------------------------
     st.subheader("Segment Summary")
 
@@ -203,46 +226,173 @@ try:
             "Average_Monetary": "Average Monetary"
         })
     )
-    st.dataframe(segment_summary, use_container_width=True, hide_index=True)
+
+    st.dataframe(
+        segment_summary,
+        use_container_width=True,
+        hide_index=True
+    )
 
     # --------------------------------------------------
-    # 8. Filterable customer table
+    # 8. Day 17: Interactive Customer Explorer
     # --------------------------------------------------
-    st.subheader("Customer Explorer")
+    st.subheader("🔎 Interactive Customer Explorer")
+    st.write("Filter customers using RFM values and inspect individual profiles.")
 
+    st.sidebar.subheader("Customer-Level Filters")
+
+    # Set slider limits from the selected customer segments
+    recency_min = int(filtered_customers["Recency"].min())
+    recency_max = int(filtered_customers["Recency"].max())
+
+    frequency_min = int(filtered_customers["Frequency"].min())
+    frequency_max = int(filtered_customers["Frequency"].max())
+
+    monetary_min = float(filtered_customers["Monetary"].min())
+    monetary_max = float(filtered_customers["Monetary"].max())
+
+    recency_range = st.sidebar.slider(
+        "Recency range (days)",
+        min_value=recency_min,
+        max_value=recency_max,
+        value=(recency_min, recency_max)
+    )
+
+    frequency_range = st.sidebar.slider(
+        "Frequency range",
+        min_value=frequency_min,
+        max_value=frequency_max,
+        value=(frequency_min, frequency_max)
+    )
+
+    if monetary_min < monetary_max:
+        monetary_range = st.sidebar.slider(
+            "Monetary range",
+            min_value=monetary_min,
+            max_value=monetary_max,
+            value=(monetary_min, monetary_max),
+            step=max((monetary_max - monetary_min) / 100, 0.01)
+        )
+    else:
+        monetary_range = (monetary_min, monetary_max)
+        st.sidebar.caption(
+            f"Monetary value is fixed at {monetary_min:,.2f} for these customers."
+        )
+
+    # Apply RFM filters
+    table_customers = filtered_customers[
+        filtered_customers["Recency"].between(*recency_range)
+        & filtered_customers["Frequency"].between(*frequency_range)
+        & filtered_customers["Monetary"].between(*monetary_range)
+    ].copy()
+
+    # Search for a customer
     search_id = st.text_input(
         "Search by Customer ID (optional)",
         placeholder="Enter a customer ID"
     )
 
-    table_customers = filtered_customers.copy()
-
     if search_id.strip():
         table_customers = table_customers[
             table_customers["CustomerID"].astype(str).str.contains(
-                search_id.strip(), case=False, na=False
+                search_id.strip(),
+                case=False,
+                na=False,
+                regex=False
             )
         ]
 
-    st.caption(f"{len(table_customers):,} matching customer records")
+    st.caption(f"{len(table_customers):,} customers match your filters.")
+
+    display_columns = [
+        "CustomerID", "Segment_Name", "Recency",
+        "Frequency", "Monetary", "Cluster"
+    ]
 
     st.dataframe(
-        table_customers[
-            ["CustomerID", "Segment_Name", "Recency",
-             "Frequency", "Monetary", "Cluster"]
-        ],
+        table_customers[display_columns],
         use_container_width=True,
         hide_index=True
     )
 
+    # --------------------------------------------------
+    # 9. Individual customer profile
+    # --------------------------------------------------
+    st.subheader("👤 Individual Customer Profile")
+
+    if table_customers.empty:
+        st.info(
+            "No customers match your current filters. "
+            "Adjust the sliders or clear your customer search."
+        )
+    else:
+        # Use a unique list of customer IDs for the dropdown
+        customer_options = (
+            table_customers["CustomerID"]
+            .drop_duplicates()
+            .tolist()
+        )
+
+        selected_customer_id = st.selectbox(
+            "Choose a customer to inspect",
+            options=customer_options,
+            format_func=lambda customer_id: (
+                str(int(customer_id))
+                if isinstance(customer_id, (int, float))
+                and float(customer_id).is_integer()
+                else str(customer_id)
+            )
+        )
+
+        customer = table_customers[
+            table_customers["CustomerID"] == selected_customer_id
+        ].iloc[0]
+
+        customer_id_display = str(selected_customer_id)
+
+        if customer_id_display.endswith(".0"):
+            customer_id_display = customer_id_display[:-2]
+
+        st.markdown(f"### Customer ID: {customer_id_display}")
+        st.write(f"**Customer Segment:** {customer['Segment_Name']}")
+
+        profile_col1, profile_col2, profile_col3 = st.columns(3)
+
+        profile_col1.metric(
+            "Recency",
+            f"{customer['Recency']:.0f} days"
+        )
+        profile_col2.metric(
+            "Frequency",
+            f"{customer['Frequency']:.0f} transactions"
+        )
+        profile_col3.metric(
+            "Monetary",
+            f"{customer['Monetary']:,.2f}"
+        )
+
+        if customer["Segment_Name"] == "Frequent High-Value Customers":
+            st.success(
+                "Suggested action: Consider loyalty rewards, early access, "
+                "and personalized retention offers for this segment."
+            )
+        else:
+            st.info(
+                "Suggested action: Consider relevant product suggestions "
+                "and re-engagement campaigns to encourage repeat purchases."
+            )
+
 except FileNotFoundError:
-    st.error(f"Customer data file not found: {DATA_PATH}")
+    st.error(
+        f"Customer data file not found: {DATA_PATH}. "
+        "Check that the processed customer_segments.csv file exists."
+    )
 
 except pd.errors.EmptyDataError:
     st.error("The customer data CSV file is empty.")
 
 except pd.errors.ParserError:
-    st.error("The customer data CSV file could not be read.")
+    st.error("The customer data CSV file could not be read as a valid CSV.")
 
 except Exception as error:
     st.error(f"An unexpected error occurred: {error}")
