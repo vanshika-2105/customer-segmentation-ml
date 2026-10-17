@@ -6,6 +6,10 @@ This project uses unsupervised machine learning to segment customers based on th
 
 An interactive Streamlit dashboard allows users to explore customer segments, compare RFM metrics, filter customers, and inspect individual customer profiles.
 
+## Live Demo
+
+**Try the dashboard:** [Customer Segmentation Dashboard](https://customer-segmentation-ml-bpdt8dnfvrgvs37935zuao.streamlit.app/)
+
 ## Objectives
 
 - Analyze customer purchasing behavior.
@@ -162,9 +166,8 @@ The prediction method expects RFM features that have been scaled consistently wi
 
 ## Future Improvements
 
-- Deploy the dashboard publicly.
 - Improve automated testing.
-- Add additional clustering evaluation and comparison.
+- Compare additional clustering approaches.
 - Enhance dashboard presentation and reporting.
 - Explore additional customer behavior features.
 
@@ -172,4 +175,4 @@ The prediction method expects RFM features that have been scaled consistently wi
 
 **Vanshika**
 
-GitHub: https://github.com/vanshika-2105
+GitHub: [vanshika-2105](https://github.com/vanshika-2105)
